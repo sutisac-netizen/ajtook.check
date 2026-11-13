@@ -1,0 +1,841 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ระบบติดตามคะแนน การส่งงาน และการเข้าเรียน (Smart Gradebook & Tracker)</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <!-- Custom Styles -->
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body class="min-h-screen flex flex-col">
+
+  <!-- ========================================================================
+       TOP NAVIGATION BAR
+       ======================================================================== -->
+  <header class="bg-white border-b border-slate-200 sticky top-0 z-30 no-print">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex flex-wrap items-center justify-between gap-3">
+      <!-- Brand -->
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-700 flex items-center justify-center text-white text-xl shadow-sm">
+          🎓
+        </div>
+        <div>
+          <h1 class="font-heading font-bold text-base sm:text-lg text-slate-900 leading-tight">
+            Smart Gradebook & Classroom Tracker
+          </h1>
+          <p class="text-xs text-slate-500">
+            ระบบติดตามคะแนน การส่งงาน การเข้าเรียน และตัดเกรด A–F อัตโนมัติ (เชื่อม Google Sheets)
+          </p>
+        </div>
+      </div>
+
+      <!-- Right Controls: Sync Status + Mode Switcher -->
+      <div class="flex flex-wrap items-center gap-2.5">
+        <!-- Google Sheets Sync Status Badge -->
+        <button
+          id="syncStatusBadge"
+          onclick="App.openGoogleSheetsModal()"
+          title="คลิกเพื่อตั้งค่าการเชื่อมต่อ Google Sheets"
+          class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium border bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100 transition"
+        >
+          <span id="syncStatusDot" class="w-2 h-2 rounded-full bg-amber-500"></span>
+          <span id="syncStatusText">โหมดทดลองใช้งาน (คลิกเชื่อม Google Sheets)</span>
+        </button>
+
+        <!-- Role Switcher (Teacher / Student View) -->
+        <div class="inline-flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200">
+          <button
+            id="btnSwitchTeacher"
+            onclick="App.switchMode('teacher')"
+            class="px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-medium bg-blue-600 text-white shadow-sm transition"
+          >
+            👨‍🏫 โหมดอาจารย์ (แก้ไขได้)
+          </button>
+          <button
+            id="btnSwitchStudent"
+            onclick="App.switchMode('student')"
+            class="px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-medium text-slate-600 hover:text-slate-900 transition"
+          >
+            🧑‍🎓 หน้าเช็คคะแนนนักเรียน (ดูอย่างเดียว)
+          </button>
+        </div>
+
+        <button
+          id="btnTeacherLogout"
+          onclick="App.logoutTeacher()"
+          title="ล็อกเอาต์ออกจากโหมดอาจารย์เพื่อทดสอบสิทธิ์นักเรียน"
+          class="px-3 py-1.5 rounded-xl text-xs font-medium text-slate-600 hover:text-red-600 hover:bg-red-50 border border-slate-200 transition"
+        >
+          🔒 ล็อกโหมดอาจารย์
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- ========================================================================
+       TEACHER MODE WRAPPER (เฉพาะอาจารย์ที่มีรหัสผ่าน)
+       ======================================================================== -->
+  <main id="teacherModeWrapper" class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-5">
+
+    <!-- Sub-Navigation Tabs -->
+    <div class="flex flex-wrap items-center justify-between gap-3 mb-5 no-print">
+      <div class="flex flex-wrap items-center gap-2">
+        <button id="tabBtn_dashboard" onclick="App.switchTab('dashboard')" class="flex items-center gap-2 px-4 py-2.5 rounded-xl font-heading font-medium text-sm bg-blue-600 text-white shadow-sm transition">
+          <span>📊</span> ภาพรวมทุกรายวิชา (Dashboard)
+        </button>
+        <button id="tabBtn_gradebook" onclick="App.switchTab('gradebook')" class="flex items-center gap-2 px-4 py-2.5 rounded-xl font-heading font-medium text-sm bg-white text-slate-600 hover:bg-slate-100 border border-slate-200 transition">
+          <span>📝</span> ตารางคะแนน & ส่งงาน & ตัดเกรด
+        </button>
+        <button id="tabBtn_attendance" onclick="App.switchTab('attendance')" class="flex items-center gap-2 px-4 py-2.5 rounded-xl font-heading font-medium text-sm bg-white text-slate-600 hover:bg-slate-100 border border-slate-200 transition">
+          <span>📅</span> เช็คชื่อเข้าเรียนรายวัน
+        </button>
+        <button id="tabBtn_courses" onclick="App.switchTab('courses')" class="flex items-center gap-2 px-4 py-2.5 rounded-xl font-heading font-medium text-sm bg-white text-slate-600 hover:bg-slate-100 border border-slate-200 transition">
+          <span>⚙️</span> จัดการวิชา / ช่องคะแนน / เกณฑ์เกรด
+        </button>
+      </div>
+
+      <div class="flex flex-wrap items-center gap-2">
+        <button
+          onclick="App.pullFromGoogleSheetsNow()"
+          title="ดึงรายชื่อหรือคะแนนที่แก้ไขใน Google Sheets เข้ามาที่หน้าเว็บ"
+          class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-medium bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 transition"
+        >
+          <span>⬇️</span> ดึงข้อมูลจาก Sheet
+        </button>
+        <button
+          onclick="App.manualSyncNow()"
+          title="ส่งข้อมูลจากหน้าเว็บไปอัปเดตตารางใน Google Sheets"
+          class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-medium bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm transition"
+        >
+          <span>☁️</span> บันทึกลง Sheet
+        </button>
+        <button
+          onclick="App.openGoogleSheetsModal()"
+          class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-medium bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 transition"
+        >
+          <span>🔗</span> ตั้งค่าเชื่อม Sheet / ลิงก์นักเรียน
+        </button>
+      </div>
+    </div>
+
+    <!-- ======================================================================
+         TAB 1: DASHBOARD ภาพรวม (Overview)
+         ====================================================================== -->
+    <section id="tabPanel_dashboard" class="space-y-5 animate-fade-in">
+      <!-- Filter Bar -->
+      <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <h2 class="font-heading font-bold text-base text-slate-900">ภาพรวมผลการเรียน การส่งงาน และการเข้าเรียน</h2>
+          <p class="text-xs text-slate-500">เลือกดูภาพรวมทั้งหมด หรือกรองดูเฉพาะวิชาและห้องเรียนที่ต้องการ</p>
+        </div>
+        <div class="flex flex-wrap items-center gap-2.5">
+          <select
+            id="dashCourseFilter"
+            onchange="App.onDashboardFilterChange()"
+            class="px-3.5 py-2 rounded-xl border border-slate-200 text-xs sm:text-sm font-medium bg-slate-50 hover:bg-white focus:outline-none focus:border-blue-500"
+          ></select>
+          <select
+            id="dashClassroomFilter"
+            onchange="App.onDashboardFilterChange()"
+            class="px-3.5 py-2 rounded-xl border border-slate-200 text-xs sm:text-sm font-medium bg-slate-50 hover:bg-white focus:outline-none focus:border-blue-500"
+          ></select>
+        </div>
+      </div>
+
+      <!-- 4 Stat Cards -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-medium text-slate-500">จำนวนนักเรียนทั้งหมด</span>
+            <span class="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center text-sm">👥</span>
+          </div>
+          <div id="statTotalStudents" class="text-2xl font-heading font-bold text-slate-900 mt-2">0</div>
+          <div id="statTotalCoursesSub" class="text-xs text-slate-500 mt-1">จากทุกรายวิชา</div>
+        </div>
+
+        <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-medium text-slate-500">คะแนนรวมเฉลี่ย / เข้าเรียนเฉลี่ย</span>
+            <span class="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center text-sm">📈</span>
+          </div>
+          <div class="flex items-baseline gap-2 mt-2">
+            <span id="statAvgScore" class="text-2xl font-heading font-bold text-blue-700">0.0</span>
+            <span class="text-xs text-slate-400">คะแนน</span>
+            <span class="text-slate-300">|</span>
+            <span id="statAvgAttendance" class="text-lg font-heading font-semibold text-emerald-600">100%</span>
+          </div>
+          <div class="text-xs text-slate-500 mt-1">คำนวณจากคะแนนเก็บและอัตราเข้าเรียน</div>
+        </div>
+
+        <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-medium text-slate-500">นักเรียนที่มีงานค้างส่ง</span>
+            <span class="w-8 h-8 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center text-sm">📌</span>
+          </div>
+          <div id="statMissingCount" class="text-2xl font-heading font-bold text-amber-600 mt-2">0 คน</div>
+          <div id="statMissingPiecesSub" class="text-xs text-slate-500 mt-1">รวมงานค้างทั้งหมด 0 ชิ้น</div>
+        </div>
+
+        <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-medium text-slate-500">คะแนนต่ำกว่าเกณฑ์ (เกรด F)</span>
+            <span class="w-8 h-8 rounded-lg bg-red-50 text-red-600 flex items-center justify-center text-sm">⚠️</span>
+          </div>
+          <div id="statGradeFCount" class="text-2xl font-heading font-bold text-red-600 mt-2">0 คน</div>
+          <div class="text-xs text-slate-500 mt-1">คลิกดูรายชื่อด้านล่างเพื่อติดตามผล</div>
+        </div>
+      </div>
+
+      <!-- Grade Distribution Chart & Classroom Summary -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-5">
+        <!-- Grade Chart -->
+        <div class="lg:col-span-5 bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col">
+          <div class="flex items-center justify-between mb-3">
+            <div>
+              <h3 class="font-heading font-semibold text-sm text-slate-900">กราฟสรุปจำนวนเกรด (A ถึง F)</h3>
+              <p class="text-xs text-slate-500">ตัดเกรดอัตโนมัติ 8 ระดับตามเกณฑ์ของแต่ละวิชา</p>
+            </div>
+          </div>
+          <div class="flex-1 min-h-[230px] relative">
+            <canvas id="gradeDistributionChart"></canvas>
+          </div>
+        </div>
+
+        <!-- Classroom Breakdown Table -->
+        <div class="lg:col-span-7 bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+          <div class="flex items-center justify-between mb-3">
+            <div>
+              <h3 class="font-heading font-semibold text-sm text-slate-900">สรุปแยกตามรายวิชาและห้องเรียน</h3>
+              <p class="text-xs text-slate-500">กดปุ่ม "เปิดตารางคะแนน" เพื่อเข้าไปกรอกคะแนนของห้องนั้นได้ทันที</p>
+            </div>
+            <button onclick="App.createNewCourseModal()" class="px-3 py-1.5 rounded-xl text-xs font-medium bg-blue-50 hover:bg-blue-100 text-blue-700 transition">
+              + เพิ่มวิชาใหม่
+            </button>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse text-xs">
+              <thead>
+                <tr class="bg-slate-50 text-slate-600 border-b border-slate-200 font-heading">
+                  <th class="py-2.5 px-4">รายวิชา</th>
+                  <th class="py-2.5 px-4 text-center">ห้องเรียน</th>
+                  <th class="py-2.5 px-4 text-center">นักเรียน</th>
+                  <th class="py-2.5 px-4 text-center">คะแนนเฉลี่ย</th>
+                  <th class="py-2.5 px-4 text-center">เกรด A / B+</th>
+                  <th class="py-2.5 px-4 text-center">ค้างส่งงาน</th>
+                  <th class="py-2.5 px-4 text-center">ติด F</th>
+                  <th class="py-2.5 px-4 text-right">จัดการ</th>
+                </tr>
+              </thead>
+              <tbody id="dashClassroomBreakdown"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Students Needing Attention -->
+      <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+        <div class="flex items-center justify-between mb-3">
+          <div>
+            <h3 class="font-heading font-semibold text-sm text-slate-900">📌 รายชื่อนักเรียนที่มีงานค้างส่ง หรือ คะแนนเสี่ยงติด F</h3>
+            <p class="text-xs text-slate-500">คลิกที่ปุ่ม "ดูรายละเอียดรายคน" เพื่อดูประวัติการเข้าเรียนและงานที่ค้างทั้งหมด</p>
+          </div>
+        </div>
+        <div id="dashAlertStudentsList" class="space-y-2.5"></div>
+      </div>
+    </section>
+
+    <!-- ======================================================================
+         TAB 2: GRADEBOOK ตารางกรอกคะแนน & ส่งงาน & ตัดเกรด
+         ====================================================================== -->
+    <section id="tabPanel_gradebook" class="space-y-4 hidden animate-fade-in">
+      <!-- Top Controls -->
+      <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-3">
+        <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+          <div class="flex flex-wrap items-center gap-2.5">
+            <div>
+              <label class="block text-[11px] text-slate-500 mb-0.5">เลือกรายวิชา:</label>
+              <select
+                id="gbCourseSelect"
+                onchange="App.onActiveCourseChange(this)"
+                class="px-3.5 py-2 rounded-xl border border-slate-200 text-xs sm:text-sm font-semibold text-slate-800 bg-slate-50 focus:bg-white"
+              ></select>
+            </div>
+            <div>
+              <label class="block text-[11px] text-slate-500 mb-0.5">เลือกห้องเรียน:</label>
+              <select
+                id="gbClassroomSelect"
+                onchange="App.onActiveClassroomChange(this)"
+                class="px-3.5 py-2 rounded-xl border border-slate-200 text-xs sm:text-sm font-medium text-slate-800 bg-slate-50 focus:bg-white"
+              ></select>
+            </div>
+            <div>
+              <label class="block text-[11px] text-slate-500 mb-0.5">กรองสถานะ:</label>
+              <select
+                onchange="App.onGradeFilterChange(this.value)"
+                class="px-3 py-2 rounded-xl border border-slate-200 text-xs sm:text-sm bg-slate-50"
+              >
+                <option value="ALL">แสดงนักเรียนทั้งหมด</option>
+                <option value="MISSING">⚠️ เฉพาะคนมีงานค้างส่ง</option>
+                <option value="AT_RISK">🚨 เฉพาะคนได้เกรด D หรือ F</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-[11px] text-slate-500 mb-0.5">ค้นหาชื่อ / รหัสนักเรียน:</label>
+              <input
+                type="text"
+                placeholder="พิมพ์ชื่อ หรือ รหัส..."
+                oninput="App.onGradebookSearch(this.value)"
+                class="px-3.5 py-2 rounded-xl border border-slate-200 text-xs sm:text-sm bg-slate-50 focus:bg-white w-48"
+              />
+            </div>
+          </div>
+
+          <div class="flex flex-wrap items-center gap-2 self-end">
+            <button
+              onclick="App.openAddStudentModal()"
+              class="px-3.5 py-2 rounded-xl text-xs font-medium bg-blue-600 hover:bg-blue-700 text-white shadow-sm transition"
+            >
+              + เพิ่มนักเรียน / นำเข้าจาก Excel
+            </button>
+            <button
+              onclick="App.switchTab('courses')"
+              class="px-3.5 py-2 rounded-xl text-xs font-medium bg-slate-100 hover:bg-slate-200 text-slate-700 transition"
+            >
+              ⚙️ เพิ่ม/แก้ช่องคะแนน & เกณฑ์เกรด
+            </button>
+            <button
+              onclick="App.exportCurrentCourseCSV()"
+              class="px-3.5 py-2 rounded-xl text-xs font-medium bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 transition"
+            >
+              📥 ส่งออกไฟล์ Excel (.CSV)
+            </button>
+            <button
+              onclick="App.clearCourseStudents()"
+              title="ลบรายชื่อนักเรียนตัวอย่างในวิชา/ห้องที่เลือก เพื่อใส่รายชื่อจริง"
+              class="px-3 py-2 rounded-xl text-xs font-medium text-red-600 hover:bg-red-50 border border-red-200 transition"
+            >
+              🗑️ ล้างรายชื่อ
+            </button>
+          </div>
+        </div>
+
+        <div id="gradebookCourseSummaryBar" class="pt-2 border-t border-slate-100"></div>
+      </div>
+
+      <!-- Gradebook Spreadsheet Table -->
+      <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div id="gradebookTableContainer" class="overflow-x-auto max-h-[68vh]"></div>
+      </div>
+    </section>
+
+    <!-- ======================================================================
+         TAB 3: ATTENDANCE ระบบเช็คชื่อและติดตามการเข้าเรียน
+         ====================================================================== -->
+    <section id="tabPanel_attendance" class="space-y-4 hidden animate-fade-in">
+      <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-3">
+        <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+          <div class="flex flex-wrap items-center gap-3">
+            <div>
+              <label class="block text-[11px] text-slate-500 mb-0.5">เลือกรายวิชา:</label>
+              <select
+                id="attCourseSelect"
+                onchange="App.onActiveCourseChange(this)"
+                class="px-3.5 py-2 rounded-xl border border-slate-200 text-xs sm:text-sm font-semibold bg-slate-50"
+              ></select>
+            </div>
+            <div>
+              <label class="block text-[11px] text-slate-500 mb-0.5">เลือกห้องเรียน:</label>
+              <select
+                id="attClassroomSelect"
+                onchange="App.onActiveClassroomChange(this)"
+                class="px-3.5 py-2 rounded-xl border border-slate-200 text-xs sm:text-sm bg-slate-50"
+              ></select>
+            </div>
+            <div>
+              <label class="block text-[11px] text-slate-500 mb-0.5">วันที่เรียน:</label>
+              <input
+                type="date"
+                id="attDateInput"
+                onchange="App.selectAttendanceDate(this.value)"
+                class="px-3.5 py-1.5 rounded-xl border border-slate-200 text-xs sm:text-sm font-medium bg-slate-50"
+              />
+            </div>
+          </div>
+
+          <!-- Quick Mark All & Stats -->
+          <div class="flex flex-wrap items-center gap-2">
+            <div class="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs">
+              <span class="text-emerald-700 font-semibold">มา: <b id="attStatPresent">0</b></span>
+              <span>•</span>
+              <span class="text-amber-700 font-semibold">สาย: <b id="attStatLate">0</b></span>
+              <span>•</span>
+              <span class="text-sky-700 font-semibold">ลา: <b id="attStatLeave">0</b></span>
+              <span>•</span>
+              <span class="text-red-600 font-semibold">ขาด: <b id="attStatAbsent">0</b></span>
+            </div>
+            <button
+              onclick="App.markAllAttendance('present')"
+              class="px-3.5 py-2 rounded-xl text-xs font-medium bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm transition"
+            >
+              ✓ เช็ค "มาเรียนทั้งหมด" ในวันนี้
+            </button>
+          </div>
+        </div>
+
+        <!-- Saved Attendance Date Pills -->
+        <div class="pt-2 border-t border-slate-100 flex items-center gap-2 flex-wrap">
+          <span class="text-xs text-slate-500">วันที่เคยเช็คชื่อแล้ว:</span>
+          <div id="attSavedDatesPills" class="flex flex-wrap items-center gap-1.5"></div>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse">
+            <thead>
+              <tr class="bg-slate-100 text-slate-700 text-xs font-heading border-b border-slate-200">
+                <th class="py-3 px-4 text-center w-24">ห้องเรียน</th>
+                <th class="py-3 px-3 text-center w-16">เลขที่</th>
+                <th class="py-3 px-4">ชื่อ-นามสกุล / รหัสนักเรียน</th>
+                <th class="py-3 px-4 text-center">สถานะการเข้าเรียน (คลิกเลือก)</th>
+                <th class="py-3 px-4 text-center">สถิติสะสม</th>
+                <th class="py-3 px-4 text-center">คะแนนเข้าเรียน</th>
+              </tr>
+            </thead>
+            <tbody id="attendanceListContainer"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ======================================================================
+         TAB 4: COURSES & GRADING CRITERIA ตั้งค่าวิชา ช่องคะแนน และเกณฑ์ตัดเกรด
+         ====================================================================== -->
+    <section id="tabPanel_courses" class="space-y-5 hidden animate-fade-in">
+      <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-200">
+          <div class="flex flex-wrap items-center gap-3">
+            <div>
+              <label class="block text-xs text-slate-500 mb-1">เลือกรายวิชาที่ต้องการตั้งค่า:</label>
+              <select
+                id="cfgCourseSelect"
+                onchange="App.onActiveCourseChange(this)"
+                class="px-4 py-2 rounded-xl border border-slate-200 text-sm font-semibold bg-slate-50"
+              ></select>
+            </div>
+            <span id="cfgTotalMaxScoreBadge" class="px-3 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 self-end mb-1">
+              คะแนนเต็มรวมทั้งวิชา: 100 คะแนน
+            </span>
+          </div>
+
+          <div class="flex items-center gap-2">
+            <button
+              onclick="App.createNewCourseModal()"
+              class="px-3.5 py-2 rounded-xl text-xs font-medium bg-blue-600 hover:bg-blue-700 text-white shadow-sm transition"
+            >
+              + เพิ่มรายวิชาใหม่
+            </button>
+            <button
+              onclick="App.deleteCurrentCourse()"
+              class="px-3.5 py-2 rounded-xl text-xs font-medium text-red-600 hover:bg-red-50 border border-red-200 transition"
+            >
+              ลบวิชานี้
+            </button>
+          </div>
+        </div>
+
+        <!-- Course Details & Grading Scale -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 mt-5">
+          <!-- Left: Basic Info -->
+          <div class="lg:col-span-5 space-y-3.5">
+            <h3 class="font-heading font-semibold text-sm text-slate-900">1. ข้อมูลรายวิชาและห้องเรียน</h3>
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs text-slate-600 mb-1">รหัสวิชา</label>
+                <input id="cfgCourseCode" type="text" class="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm" />
+              </div>
+              <div>
+                <label class="block text-xs text-slate-600 mb-1">ภาคเรียน / ปีการศึกษา</label>
+                <input id="cfgCourseTerm" type="text" class="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm" />
+              </div>
+            </div>
+            <div>
+              <label class="block text-xs text-slate-600 mb-1">ชื่อวิชา</label>
+              <input id="cfgCourseName" type="text" class="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm" />
+            </div>
+            <div>
+              <label class="block text-xs text-slate-600 mb-1">ห้องเรียนที่สอน (คั่นด้วยเครื่องหมายจุลภาค , เช่น ม.4/1, ม.4/2)</label>
+              <input id="cfgCourseClassrooms" type="text" class="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm" />
+            </div>
+            <div>
+              <label class="block text-xs text-slate-600 mb-1">คะแนนเต็มหมวดการเข้าเรียน (คำนวณอัตโนมัติจากการเช็คชื่อ)</label>
+              <input id="cfgAttMaxScore" type="number" step="0.5" min="0" class="w-40 px-3 py-2 rounded-xl border border-slate-200 text-sm font-semibold text-emerald-700" />
+            </div>
+
+            <!-- Grading Scale 8 Levels -->
+            <div class="pt-3 border-t border-slate-200">
+              <h3 class="font-heading font-semibold text-sm text-slate-900 mb-2">2. เกณฑ์การตัดเกรด 8 ระดับ (A ถึง F)</h3>
+              <p class="text-xs text-slate-500 mb-3">กำหนดคะแนนขั้นต่ำของแต่ละเกรด (หากต่ำกว่าเกณฑ์ D จะได้เกรด F อัตโนมัติ)</p>
+              <div class="grid grid-cols-4 gap-2.5">
+                <div class="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-center">
+                  <label class="block text-xs font-bold text-emerald-800">เกรด A (≥)</label>
+                  <input id="scaleInput_A" type="number" class="w-full mt-1 px-2 py-1 rounded-lg border border-emerald-300 text-center text-sm font-bold bg-white" />
+                </div>
+                <div class="p-2.5 rounded-xl bg-teal-50 border border-teal-200 text-center">
+                  <label class="block text-xs font-bold text-teal-800">เกรด B+ (≥)</label>
+                  <input id="scaleInput_B+" type="number" class="w-full mt-1 px-2 py-1 rounded-lg border border-teal-300 text-center text-sm font-bold bg-white" />
+                </div>
+                <div class="p-2.5 rounded-xl bg-sky-50 border border-sky-200 text-center">
+                  <label class="block text-xs font-bold text-sky-800">เกรด B (≥)</label>
+                  <input id="scaleInput_B" type="number" class="w-full mt-1 px-2 py-1 rounded-lg border border-sky-300 text-center text-sm font-bold bg-white" />
+                </div>
+                <div class="p-2.5 rounded-xl bg-blue-50 border border-blue-200 text-center">
+                  <label class="block text-xs font-bold text-blue-800">เกรด C+ (≥)</label>
+                  <input id="scaleInput_C+" type="number" class="w-full mt-1 px-2 py-1 rounded-lg border border-blue-300 text-center text-sm font-bold bg-white" />
+                </div>
+                <div class="p-2.5 rounded-xl bg-yellow-50 border border-yellow-200 text-center">
+                  <label class="block text-xs font-bold text-yellow-800">เกรด C (≥)</label>
+                  <input id="scaleInput_C" type="number" class="w-full mt-1 px-2 py-1 rounded-lg border border-yellow-300 text-center text-sm font-bold bg-white" />
+                </div>
+                <div class="p-2.5 rounded-xl bg-orange-50 border border-orange-200 text-center">
+                  <label class="block text-xs font-bold text-orange-800">เกรด D+ (≥)</label>
+                  <input id="scaleInput_D+" type="number" class="w-full mt-1 px-2 py-1 rounded-lg border border-orange-300 text-center text-sm font-bold bg-white" />
+                </div>
+                <div class="p-2.5 rounded-xl bg-red-50 border border-red-200 text-center">
+                  <label class="block text-xs font-bold text-red-800">เกรด D (≥)</label>
+                  <input id="scaleInput_D" type="number" class="w-full mt-1 px-2 py-1 rounded-lg border border-red-300 text-center text-sm font-bold bg-white" />
+                </div>
+                <div class="p-2.5 rounded-xl bg-slate-100 border border-slate-200 text-center flex flex-col justify-center">
+                  <span class="text-xs font-bold text-red-600">เกรด F</span>
+                  <span class="text-[11px] text-slate-500 mt-1">ต่ำกว่าเกรด D</span>
+                </div>
+              </div>
+            </div>
+
+            <button
+              onclick="App.saveCourseBasicSettings()"
+              class="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-heading font-semibold text-sm shadow-sm transition"
+            >
+              💾 บันทึกข้อมูลวิชาและเกณฑ์ตัดเกรด
+            </button>
+          </div>
+
+          <!-- Right: Assessments (Assignments, Report, Midterm, Final, Other) -->
+          <div class="lg:col-span-7 space-y-3">
+            <div class="flex items-center justify-between">
+              <div>
+                <h3 class="font-heading font-semibold text-sm text-slate-900">3. กำหนดช่องคะแนน (งาน, รายงาน, สอบกลางภาค, ปลายภาค, อื่นๆ)</h3>
+                <p class="text-xs text-slate-500">เพิ่มหรือแก้ไขหัวข้อคะแนนและคะแนนเต็มของแต่ละช่องได้อิสระ</p>
+              </div>
+              <button
+                onclick="App.addAssessmentItem()"
+                class="px-3.5 py-2 rounded-xl text-xs font-medium bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm transition"
+              >
+                + เพิ่มช่องคะแนน / งานใหม่
+              </button>
+            </div>
+
+            <div id="cfgAssessmentsList" class="space-y-2.5 max-h-[480px] overflow-y-auto pr-1"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ========================================================================
+       STUDENT MODE WRAPPER (หน้าสำหรับนักเรียนเช็คคะแนนและงานค้าง ดูได้อย่างเดียว)
+       ======================================================================== -->
+  <main id="studentModeWrapper" class="flex-1 max-w-4xl w-full mx-auto px-4 sm:px-6 py-8 hidden">
+    <div class="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 sm:p-8 mb-6">
+      <div class="text-center max-w-xl mx-auto">
+        <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200 mb-3">
+          🧑‍🎓 ระบบตรวจสอบคะแนนและงานค้างสำหรับนักเรียน (อ่านได้อย่างเดียว)
+        </span>
+        <h2 class="text-xl sm:text-2xl font-heading font-bold text-slate-900">
+          ตรวจสอบคะแนน การส่งงาน การเข้าเรียน และเกรด
+        </h2>
+        <p class="text-xs sm:text-sm text-slate-500 mt-1">
+          กรอกรหัสประจำตัวนักเรียนของคุณเพื่อดูรายละเอียดคะแนนทุกวิชาและรายการงานที่ค้างส่ง
+        </p>
+
+        <form onsubmit="App.handleStudentLookup(event)" class="mt-5 flex flex-col sm:flex-row gap-2.5">
+          <input
+            id="studentLookupInput"
+            type="text"
+            placeholder="กรอกรหัสนักเรียน (เช่น 6601001)..."
+            class="flex-1 px-4 py-3 rounded-xl border border-slate-300 text-base font-medium focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+          />
+          <button
+            type="submit"
+            class="px-6 py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-heading font-semibold text-sm shadow-sm transition"
+          >
+            🔍 ค้นหาข้อมูลคะแนน
+          </button>
+        </form>
+
+        <!-- ปุ่มรหัสตัวอย่างสำหรับกดทดสอบทันที -->
+        <div class="mt-3 flex flex-wrap items-center justify-center gap-1.5 text-xs text-slate-500">
+          <span>คลิกทดสอบรหัสตัวอย่าง:</span>
+          <button onclick="App.fillSampleStudentId('6601001')" class="px-2.5 py-0.5 rounded-full bg-slate-100 hover:bg-blue-50 hover:text-blue-700 font-medium transition">6601001 (เรียน 2 วิชา)</button>
+          <button onclick="App.fillSampleStudentId('6601004')" class="px-2.5 py-0.5 rounded-full bg-slate-100 hover:bg-blue-50 hover:text-blue-700 font-medium transition">6601004 (มีงานค้าง)</button>
+          <button onclick="App.fillSampleStudentId('6601005')" class="px-2.5 py-0.5 rounded-full bg-slate-100 hover:bg-blue-50 hover:text-blue-700 font-medium transition">6601005 (เกรด A)</button>
+          <button onclick="App.fillSampleStudentId('6502003')" class="px-2.5 py-0.5 rounded-full bg-slate-100 hover:bg-blue-50 hover:text-blue-700 font-medium transition">6502003 (ห้อง ม.5/2)</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="studentLookupResultContainer"></div>
+  </main>
+
+  <!-- ========================================================================
+       MODAL 1: ดูรายละเอียดคะแนนรายบุคคล (Student Individual Profile Modal)
+       ======================================================================== -->
+  <div id="studentProfileModal" class="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-2xl border border-slate-200 shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto p-6 print-container animate-fade-in">
+      <div id="studentProfileModalContent"></div>
+    </div>
+  </div>
+
+  <!-- ========================================================================
+       MODAL 2: เพิ่มนักเรียน / นำเข้ารายชื่อจาก Excel หรือ Google Sheets
+       ======================================================================== -->
+  <div id="addStudentModal" class="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 hidden no-print">
+    <div class="bg-white rounded-2xl border border-slate-200 shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6 animate-fade-in">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-200">
+        <h3 class="font-heading font-bold text-base text-slate-900">👥 เพิ่มรายชื่อนักเรียนเข้าห้องเรียน</h3>
+        <button onclick="App.closeAddStudentModal()" class="text-slate-400 hover:text-slate-600 text-lg">✕</button>
+      </div>
+
+      <div class="mt-4 space-y-5">
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">เลือกห้องเรียนที่ต้องการเพิ่มนักเรียน:</label>
+          <select id="newStuClassroom" class="w-full sm:w-60 px-3.5 py-2 rounded-xl border border-slate-200 text-sm font-medium bg-slate-50"></select>
+        </div>
+
+        <!-- วิธีที่ 1: เพิ่มทีละคน -->
+        <form onsubmit="App.submitSingleStudent(event)" class="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
+          <h4 class="font-heading font-semibold text-xs text-slate-800">วิธีที่ 1: เพิ่มรายบุคคล</h4>
+          <div class="grid grid-cols-1 sm:grid-cols-12 gap-2.5">
+            <div class="sm:col-span-2">
+              <input id="newStuNumber" type="number" placeholder="เลขที่" class="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm bg-white" />
+            </div>
+            <div class="sm:col-span-4">
+              <input id="newStuId" type="text" placeholder="รหัสนักเรียน (เช่น 6601008)" class="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm bg-white" />
+            </div>
+            <div class="sm:col-span-6">
+              <input id="newStuName" type="text" placeholder="ชื่อ-นามสกุล" class="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm bg-white" />
+            </div>
+          </div>
+          <button type="submit" class="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium transition">
+            + เพิ่มนักเรียนคนนี้
+          </button>
+        </form>
+
+        <!-- วิธีที่ 2: ก๊อปปี้วางจาก Excel / Google Sheets ทีละทั้งห้อง -->
+        <div class="p-4 rounded-xl bg-blue-50/50 border border-blue-200 space-y-2.5">
+          <h4 class="font-heading font-semibold text-xs text-blue-900">วิธีที่ 2: นำเข้าทีละหลายคน (ก๊อปปี้จาก Excel หรือ Google Sheets มาวางได้เลย)</h4>
+          <p class="text-[11px] text-slate-600">
+            รูปแบบบรรทัดละ 1 คน: <code>เลขที่ [Tab หรือ ,] รหัสนักเรียน [Tab หรือ ,] ชื่อ-นามสกุล</code> หรือ <code>รหัสนักเรียน, ชื่อ-นามสกุล</code>
+          </p>
+          <textarea
+            id="bulkStudentsTextarea"
+            rows="5"
+            placeholder="ตัวอย่าง:&#10;1&#9;6601010&#9;นายสมชาย ใจดี&#10;2&#9;6601011&#9;นางสาวสมหญิง รักเรียน"
+            class="w-full p-3 rounded-xl border border-slate-200 text-xs font-mono bg-white"
+          ></textarea>
+          <div class="flex justify-end gap-2">
+            <button onclick="App.closeAddStudentModal()" class="px-4 py-2 rounded-lg text-xs text-slate-600 hover:bg-slate-100">ยกเลิก</button>
+            <button onclick="App.submitBulkStudents()" class="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-medium shadow-sm transition">
+              📥 นำเข้ารายชื่อทั้งหมด
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================================================
+       MODAL 3: ตั้งค่าเชื่อมต่อ Google Sheets & ลิงก์นักเรียน & รหัสผ่านอาจารย์
+       ======================================================================== -->
+  <div id="googleSheetsModal" class="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 hidden no-print">
+    <div class="bg-white rounded-2xl border border-slate-200 shadow-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto p-6 animate-fade-in">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-200">
+        <div>
+          <h3 class="font-heading font-bold text-base text-slate-900">🔗 ตั้งค่าการเชื่อมต่อ Google Sheets & สิทธิ์การเข้าถึง</h3>
+          <p class="text-xs text-slate-500">ซิงค์ข้อมูลออนไลน์ใช้งานได้หลายเครื่อง และสร้างตารางแยกวิชาใน Google Sheets อัตโนมัติ</p>
+        </div>
+        <button onclick="App.closeGoogleSheetsModal()" class="text-slate-400 hover:text-slate-600 text-lg">✕</button>
+      </div>
+
+      <div class="mt-4 space-y-5">
+        <!-- ส่วนที่ 1: Web App URL -->
+        <div class="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
+          <h4 class="font-heading font-semibold text-xs text-slate-900">1. URL ของ Google Apps Script Web App</h4>
+          <div>
+            <input
+              id="gsWebAppUrlInput"
+              type="url"
+              placeholder="วาง Web App URL ที่ได้จากการ Deploy (https://script.google.com/macros/s/.../exec)"
+              class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-xs font-mono bg-white"
+            />
+          </div>
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <label class="inline-flex items-center gap-2 text-xs text-slate-700 cursor-pointer">
+              <input id="gsAutoSyncCheckbox" type="checkbox" checked class="rounded text-blue-600" />
+              <span>บันทึกและอัปเดตตารางใน Google Sheets อัตโนมัติทุกครั้งที่แก้ไขคะแนน</span>
+            </label>
+            <div class="flex items-center gap-2">
+              <button
+                onclick="App.pullFromGoogleSheetsNow()"
+                class="px-3 py-1.5 rounded-lg text-xs font-medium bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 transition"
+              >
+                ⬇️ ดึงข้อมูลจาก Sheet
+              </button>
+              <button
+                onclick="App.saveGoogleSheetsConfig()"
+                class="px-4 py-1.5 rounded-lg text-xs font-medium bg-blue-600 hover:bg-blue-700 text-white shadow-sm transition"
+              >
+                💾 บันทึกและเชื่อมต่อ
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- ส่วนที่ 2: ลิงก์สำหรับอาจารย์และลิงก์สำหรับส่งให้นักเรียน -->
+        <div class="p-4 rounded-xl bg-blue-50/60 border border-blue-200 space-y-3">
+          <div>
+            <h4 class="font-heading font-semibold text-xs text-blue-900">2.1 ลิงก์สำหรับอาจารย์ (ใช้เปิดในมือถือ / iPad ของอาจารย์ท่านนี้โดยไม่ต้องวาง URL ซ้ำ)</h4>
+            <div class="flex gap-2 mt-1">
+              <input
+                id="teacherShareUrlInput"
+                type="text"
+                readonly
+                class="flex-1 px-3 py-2 rounded-xl border border-blue-200 text-xs font-mono bg-white text-slate-700"
+              />
+              <button
+                onclick="App.copyTeacherShareLink()"
+                class="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-medium shrink-0 transition"
+              >
+                📋 คัดลอกลิงก์อาจารย์
+              </button>
+            </div>
+          </div>
+
+          <div class="pt-2 border-t border-blue-200/70">
+            <h4 class="font-heading font-semibold text-xs text-blue-900">2.2 ลิงก์สำหรับส่งให้นักเรียนเช็คคะแนน/งานค้างของตัวเอง (ดูได้อย่างเดียว แก้ไขไม่ได้)</h4>
+            <p class="text-[11px] text-slate-600 mb-1">
+              เมื่อนักเรียนเปิดลิงก์นี้ จะเห็นเฉพาะหน้าค้นหาด้วยรหัสนักเรียน ไม่สามารถแก้ไขคะแนนหรือดูรายชื่อรวมของเพื่อนได้
+            </p>
+            <div class="flex gap-2">
+              <input
+                id="studentShareUrlInput"
+                type="text"
+                readonly
+                class="flex-1 px-3 py-2 rounded-xl border border-blue-200 text-xs font-mono bg-white text-slate-700"
+              />
+              <button
+                onclick="App.copyStudentShareLink()"
+                class="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium shrink-0 transition"
+              >
+                📋 คัดลอกลิงก์นักเรียน
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- ส่วนที่ 3: ตั้งรหัสผ่านอาจารย์ (PIN) -->
+        <div class="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2.5">
+          <h4 class="font-heading font-semibold text-xs text-slate-900">3. รหัสผ่านอาจารย์ (ป้องกันนักเรียนสลับเข้าโหมดแก้ไข)</h4>
+          <p class="text-[11px] text-slate-500">รหัสผ่านเริ่มต้นคือ <strong>1234</strong> อาจารย์สามารถเปลี่ยนรหัสผ่านใหม่ได้ด้านล่าง (รหัสจะถูกบันทึกไว้ใน Google Sheets ด้วย)</p>
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            <input
+              id="currentPinChangeInput"
+              type="password"
+              placeholder="รหัสผ่านปัจจุบัน (เช่น 1234)"
+              class="px-3 py-2 rounded-lg border border-slate-200 text-xs bg-white"
+            />
+            <input
+              id="newPinChangeInput"
+              type="password"
+              placeholder="รหัสผ่านใหม่ (อย่างน้อย 4 ตัว)"
+              class="px-3 py-2 rounded-lg border border-slate-200 text-xs bg-white"
+            />
+            <button
+              onclick="App.handleChangePinSubmit()"
+              class="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-900 text-white text-xs font-medium transition"
+            >
+              🔑 เปลี่ยนรหัสผ่านอาจารย์
+            </button>
+          </div>
+        </div>
+
+        <!-- ส่วนที่ 4: คู่มือการติดตั้ง Google Sheets แบบง่าย 1 นาที -->
+        <div class="p-4 rounded-xl bg-emerald-50/50 border border-emerald-200 space-y-2 text-xs text-slate-700">
+          <h4 class="font-heading font-semibold text-emerald-900">📖 วิธีเชื่อมกับ Google Sheets ของอาจารย์ (ทำครั้งเดียว ใช้งานได้ทุกเครื่อง):</h4>
+          <ol class="list-decimal list-inside space-y-1 text-[11px] leading-relaxed">
+            <li>สร้างไฟล์ <strong>Google Sheets</strong> ใหม่ใน Google Drive ของอาจารย์</li>
+            <li>ไปที่เมนูด้านบน <strong>ส่วนขยาย (Extensions) &gt; Apps Script</strong></li>
+            <li>เปิดไฟล์ <code>google-apps-script/Code.gs</code> ในโฟลเดอร์โปรเจกต์นี้ คัดลอกโค้ดทั้งหมดไปวางแทนที่ใน Apps Script แล้วกดบันทึก (💾)</li>
+            <li>กดปุ่ม <strong>ทำให้ใช้งานได้ (Deploy) &gt; การทำให้ใช้งานได้รายการใหม่ (New deployment)</strong></li>
+            <li>เลือกประเภทเป็น <strong>เว็บแอป (Web app)</strong>, ช่อง "ผู้ที่มีสิทธิ์เข้าถึง (Who has access)" เลือกเป็น <strong>"ทุกคน (Anyone)"</strong> แล้วกด Deploy</li>
+            <li>คัดลอก <strong>Web App URL</strong> มาวางในช่องที่ 1 ด้านบน แล้วกด <strong>"บันทึกและเชื่อมต่อ"</strong> ระบบจะสร้างตารางแยกวิชาใน Google Sheets ให้อัตโนมัติทันที!</li>
+          </ol>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================================================
+       MODAL 4: ล็อกอินเข้าโหมดอาจารย์ (Teacher PIN Verification)
+       ======================================================================== -->
+  <div id="teacherLoginModal" class="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 hidden no-print">
+    <div class="bg-white rounded-2xl border border-slate-200 shadow-xl max-w-sm w-full p-6 animate-fade-in">
+      <div class="text-center">
+        <div class="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center text-2xl mx-auto mb-3">
+          🔐
+        </div>
+        <h3 class="font-heading font-bold text-base text-slate-900">เข้าสู่ระบบโหมดอาจารย์</h3>
+        <p class="text-xs text-slate-500 mt-1">กรอกรหัสผ่านอาจารย์เพื่อเข้าถึงสิทธิ์การกรอกและแก้ไขคะแนน (ค่าเริ่มต้น: <strong>1234</strong>)</p>
+      </div>
+
+      <form onsubmit="App.submitTeacherLogin(event)" class="mt-4 space-y-3">
+        <input
+          id="teacherPinInput"
+          type="password"
+          placeholder="กรอกรหัสผ่านอาจารย์..."
+          class="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-center text-base font-bold tracking-widest focus:outline-none focus:border-blue-600"
+        />
+        <div id="teacherLoginError" class="text-xs text-red-600 text-center hidden"></div>
+        <div class="flex gap-2 pt-1">
+          <button
+            type="button"
+            onclick="App.closeTeacherLoginModal()"
+            class="flex-1 py-2.5 rounded-xl text-xs font-medium text-slate-600 hover:bg-slate-100 transition"
+          >
+            ยกเลิก
+          </button>
+          <button
+            type="submit"
+            class="flex-1 py-2.5 rounded-xl text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white shadow-sm transition"
+          >
+            เข้าสู่ระบบ
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div id="toastContainer" class="fixed bottom-4 right-4 z-50 flex flex-col gap-2 no-print"></div>
+
+  <!-- Scripts -->
+  <script src="js/mockData.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
