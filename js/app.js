@@ -842,16 +842,26 @@ const App = {
     if (historyDatesEl) {
       historyDatesEl.innerHTML = savedDates.length > 0
         ? savedDates.map(d => `
-            <button
-              onclick="App.selectAttendanceDate('${d}')"
-              class="px-3 py-1 rounded-full text-xs font-medium border transition ${
-                d === this.attendanceDate
-                  ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
-                  : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'
-              }"
-            >
-              📅 ${d}
-            </button>
+            <div class="inline-flex items-center gap-1.5 pl-3 pr-1.5 py-1 rounded-full text-xs font-medium border transition ${
+              d === this.attendanceDate
+                ? 'bg-blue-50 border-blue-400 text-blue-900 shadow-sm ring-1 ring-blue-400'
+                : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+            }">
+              <button
+                onclick="App.selectAttendanceDate('${d}')"
+                class="flex items-center gap-1 font-semibold hover:text-blue-600 transition"
+                title="คลิกเพื่อเปิดดูหรือแก้ไขวันที่ ${d}"
+              >
+                📅 ${d}
+              </button>
+              <button
+                onclick="App.deleteAttendanceDate('${d}')"
+                title="ลบประวัติการเช็คชื่อวันที่ ${d}"
+                class="px-2 py-0.5 rounded-full bg-red-100 hover:bg-red-600 text-red-600 hover:text-white text-[11px] font-bold transition cursor-pointer"
+              >
+                ✕ ลบ
+              </button>
+            </div>
           `).join('')
         : `<span class="text-xs text-slate-400">ยังไม่มีประวัติวันที่เช็คชื่อ</span>`;
     }
@@ -953,9 +963,44 @@ const App = {
     if (!this.state.attendance[course.id][this.attendanceDate]) {
       this.state.attendance[course.id][this.attendanceDate] = {};
     }
-    this.state.attendance[course.id][this.attendanceDate][studentId] = status;
+    const current = this.state.attendance[course.id][this.attendanceDate][studentId];
+    if (current === status) {
+      // คลิกซ้ำเพื่อยกเลิกการเช็คชื่อคนนี้ (ล้างสถานะ)
+      delete this.state.attendance[course.id][this.attendanceDate][studentId];
+    } else {
+      this.state.attendance[course.id][this.attendanceDate][studentId] = status;
+    }
     this.persistState();
     this.renderAttendance();
+  },
+
+  deleteAttendanceDate(dateStr) {
+    const course = this.getActiveCourse();
+    if (!course) return;
+    if (!this.state.attendance || !this.state.attendance[course.id] || !this.state.attendance[course.id][dateStr]) {
+      this.showToast(`ไม่พบข้อมูลการเช็คชื่อของวันที่ ${dateStr}`, 'info');
+      return;
+    }
+
+    if (!confirm(`คุณต้องการลบข้อมูลการเช็คชื่อของวันที่ "${dateStr}" ในวิชานี้ใช่หรือไม่?\n\n(สถิติการเข้าเรียนและคะแนนจะถูกคำนวณใหม่โดยไม่นับรวมวันนี้)`)) {
+      return;
+    }
+
+    delete this.state.attendance[course.id][dateStr];
+
+    const remaining = Object.keys(this.state.attendance[course.id]).sort().reverse();
+    if (this.attendanceDate === dateStr) {
+      this.attendanceDate = remaining.length > 0 ? remaining[0] : new Date().toISOString().split('T')[0];
+    }
+
+    this.persistState();
+    this.renderAttendance();
+    this.renderDashboard();
+    this.showToast(`ลบประวัติการเช็คชื่อวันที่ ${dateStr} เรียบร้อยแล้ว`, 'success');
+  },
+
+  deleteCurrentAttendanceDate() {
+    this.deleteAttendanceDate(this.attendanceDate);
   },
 
   markAllAttendance(status) {
