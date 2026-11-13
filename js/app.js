@@ -35,15 +35,11 @@ const App = {
     const studentIdParam = urlParams.get('studentId');
 
     const session = GradebookAPI.getTeacherSession();
-    if (modeParam === 'student') {
-      this.currentMode = 'student';
-    } else if (session.loggedIn) {
+    if (session.loggedIn && modeParam !== 'student') {
       this.currentMode = 'teacher';
     } else {
-      // ค่าเริ่มต้นให้เข้าโหมดอาจารย์ด้วยรหัสเริ่มต้น 1234 เพื่อความสะดวกในการทดลองใช้งานทันที
-      // แต่ถ้าเป็นลิงก์นักเรียนจะบังคับใส่รหัสอาจารย์เสมอ
-      GradebookAPI.setTeacherSession(true, GradebookAPI.getConfig().localTeacherPin || '1234');
-      this.currentMode = 'teacher';
+      // เพื่อความปลอดภัย: หากยังไม่ได้ยืนยันตัวตนด้วยรหัสผ่าน ให้เริ่มต้นด้วยโหมดนักเรียนเสมอ
+      this.currentMode = 'student';
     }
 
     // แสดงผลหน้าจอเริ่มต้นทันทีระหว่างรอโหลดจาก Google Sheets
@@ -191,7 +187,7 @@ const App = {
       this.renderAll();
     } else {
       if (errBox) {
-        errBox.textContent = 'รหัสผ่านอาจารย์ไม่ถูกต้อง (ค่าเริ่มต้นสำหรับการทดลองคือ 1234)';
+        errBox.textContent = 'รหัสผ่านอาจารย์ไม่ถูกต้อง กรุณาลองใหม่อีกครั้ง';
         errBox.classList.remove('hidden');
       }
     }

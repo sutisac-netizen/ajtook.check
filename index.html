@@ -807,7 +807,7 @@
           🔐
         </div>
         <h3 class="font-heading font-bold text-base text-slate-900">เข้าสู่ระบบโหมดอาจารย์</h3>
-        <p class="text-xs text-slate-500 mt-1">กรอกรหัสผ่านอาจารย์เพื่อเข้าถึงสิทธิ์การกรอกและแก้ไขคะแนน (ค่าเริ่มต้น: <strong>1234</strong>)</p>
+        <p class="text-xs text-slate-500 mt-1">กรุณากรอกรหัสผ่านเพื่อเข้าถึงสิทธิ์การกรอกคะแนนและเช็คชื่อ</p>
       </div>
 
       <form onsubmit="App.submitTeacherLogin(event)" class="mt-4 space-y-3">
@@ -845,9 +845,15 @@
   <script src="js/api.js?v=3"></script>
   <script src="js/app.js?v=3"></script>
   <script>
-    // รวมฟังก์ชันลบประวัติวันเช็คชื่อไว้ใน index.html เพื่อให้อัปเดตไฟล์เดียวแล้วใช้งานได้ทันที 100%
+    // รวมฟังก์ชันและระบบความปลอดภัยไว้ใน index.html เพื่อให้อัปเดตไฟล์เดียวแล้วใช้งานได้ทันที 100%
     (function() {
       if (typeof App === 'undefined') return;
+
+      // ตรวจสอบความปลอดภัย: หากยังไม่ได้ยืนยันตัวตนด้วยรหัสผ่าน ให้เริ่มต้นที่โหมดนักเรียนเสมอ
+      const session = typeof GradebookAPI !== 'undefined' ? GradebookAPI.getTeacherSession() : null;
+      if (!session || !session.loggedIn) {
+        App.currentMode = 'student';
+      }
 
       App.deleteAttendanceDate = function(dateStr) {
         const course = this.getActiveCourse();
@@ -915,13 +921,13 @@
         }
       };
 
-      // สั่งเรนเดอร์แถบประวัติวันที่ทันที
+      // สั่งเรนเดอร์หน้าจอเริ่มต้นทันทีตามสถานะสิทธิ์ล็อกอิน
       if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', () => {
-          if (App.currentTab === 'attendance') App.renderAttendance();
+          App.renderAll();
         });
       } else {
-        if (App.currentTab === 'attendance') App.renderAttendance();
+        App.renderAll();
       }
     })();
   </script>
