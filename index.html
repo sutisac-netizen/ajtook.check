@@ -841,8 +841,89 @@
   <div id="toastContainer" class="fixed bottom-4 right-4 z-50 flex flex-col gap-2 no-print"></div>
 
   <!-- Scripts -->
-  <script src="js/mockData.js?v=2"></script>
-  <script src="js/api.js?v=2"></script>
-  <script src="js/app.js?v=2"></script>
+  <script src="js/mockData.js?v=3"></script>
+  <script src="js/api.js?v=3"></script>
+  <script src="js/app.js?v=3"></script>
+  <script>
+    // รวมฟังก์ชันลบประวัติวันเช็คชื่อไว้ใน index.html เพื่อให้อัปเดตไฟล์เดียวแล้วใช้งานได้ทันที 100%
+    (function() {
+      if (typeof App === 'undefined') return;
+
+      App.deleteAttendanceDate = function(dateStr) {
+        const course = this.getActiveCourse();
+        if (!course) return;
+        if (!this.state.attendance || !this.state.attendance[course.id] || !this.state.attendance[course.id][dateStr]) {
+          this.showToast(`ไม่พบข้อมูลการเช็คชื่อของวันที่ ${dateStr}`, 'info');
+          return;
+        }
+
+        if (!confirm(`คุณต้องการลบข้อมูลการเช็คชื่อของวันที่ "${dateStr}" ในวิชานี้ใช่หรือไม่?\n\n(สถิติการเข้าเรียนและคะแนนจะถูกคำนวณใหม่โดยไม่นับรวมวันนี้)`)) {
+          return;
+        }
+
+        delete this.state.attendance[course.id][dateStr];
+
+        const remaining = Object.keys(this.state.attendance[course.id]).sort().reverse();
+        if (this.attendanceDate === dateStr) {
+          this.attendanceDate = remaining.length > 0 ? remaining[0] : new Date().toISOString().split('T')[0];
+        }
+
+        this.persistState();
+        this.renderAttendance();
+        if (typeof this.renderDashboard === 'function') this.renderDashboard();
+        this.showToast(`ลบประวัติการเช็คชื่อวันที่ ${dateStr} เรียบร้อยแล้ว`, 'success');
+      };
+
+      App.deleteCurrentAttendanceDate = function() {
+        this.deleteAttendanceDate(this.attendanceDate);
+      };
+
+      // เสริม renderAttendance ให้ป้ายวันที่แสดงปุ่ม [✕ ลบ] เสมอ
+      const oldRenderAttendance = App.renderAttendance;
+      App.renderAttendance = function() {
+        if (typeof oldRenderAttendance === 'function') {
+          oldRenderAttendance.call(this);
+        }
+        const course = this.getActiveCourse();
+        const historyDatesEl = document.getElementById('attSavedDatesPills');
+        if (!course || !historyDatesEl || !this.state.attendance || !this.state.attendance[course.id]) return;
+        const courseAtt = this.state.attendance[course.id];
+        const savedDates = Object.keys(courseAtt).sort().reverse();
+        if (savedDates.length > 0) {
+          historyDatesEl.innerHTML = savedDates.map(d => `
+            <div class="inline-flex items-center gap-1.5 pl-3 pr-1.5 py-1 rounded-full text-xs font-medium border transition ${
+              d === this.attendanceDate
+                ? 'bg-blue-50 border-blue-400 text-blue-900 shadow-sm ring-1 ring-blue-400'
+                : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+            }">
+              <button
+                onclick="App.selectAttendanceDate('${d}')"
+                class="flex items-center gap-1 font-semibold hover:text-blue-600 transition"
+                title="คลิกเพื่อเปิดดูหรือแก้ไขวันที่ ${d}"
+              >
+                📅 ${d}
+              </button>
+              <button
+                onclick="App.deleteAttendanceDate('${d}')"
+                title="ลบประวัติการเช็คชื่อวันที่ ${d}"
+                class="px-2 py-0.5 rounded-full bg-red-100 hover:bg-red-600 text-red-600 hover:text-white text-[11px] font-bold transition cursor-pointer"
+              >
+                ✕ ลบ
+              </button>
+            </div>
+          `).join('');
+        }
+      };
+
+      // สั่งเรนเดอร์แถบประวัติวันที่ทันที
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', () => {
+          if (App.currentTab === 'attendance') App.renderAttendance();
+        });
+      } else {
+        if (App.currentTab === 'attendance') App.renderAttendance();
+      }
+    })();
+  </script>
 </body>
 </html>
