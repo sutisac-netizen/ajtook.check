@@ -284,10 +284,10 @@
               </select>
             </div>
             <div>
-              <label class="block text-[11px] text-slate-500 mb-0.5">ค้นหาชื่อ / รหัสนักเรียน:</label>
+              <label class="block text-[11px] text-slate-500 mb-0.5">ค้นหาชื่อ / รหัสนักศึกษา:</label>
               <input
                 type="text"
-                placeholder="พิมพ์ชื่อ หรือ รหัส..."
+                placeholder="พิมพ์ชื่อ หรือ รหัสนักศึกษา..."
                 oninput="App.onGradebookSearch(this.value)"
                 class="px-3.5 py-2 rounded-xl border border-slate-200 text-xs sm:text-sm bg-slate-50 focus:bg-white w-48"
               />
@@ -398,9 +398,9 @@
           <table class="w-full text-left border-collapse">
             <thead>
               <tr class="bg-slate-100 text-slate-700 text-xs font-heading border-b border-slate-200">
-                <th class="py-3 px-4 text-center w-24">ห้องเรียน</th>
-                <th class="py-3 px-3 text-center w-16">เลขที่</th>
-                <th class="py-3 px-4">ชื่อ-นามสกุล / รหัสนักเรียน</th>
+                <th class="py-3 px-3 text-center w-16">ลำดับที่</th>
+                <th class="py-3 px-4 text-center min-w-[125px]">รหัสนักศึกษา</th>
+                <th class="py-3 px-4">ชื่อ-นามสกุล</th>
                 <th class="py-3 px-4 text-center">สถานะการเข้าเรียน (คลิกเลือก)</th>
                 <th class="py-3 px-4 text-center">สถิติสะสม</th>
                 <th class="py-3 px-4 text-center">คะแนนเข้าเรียน</th>
@@ -622,10 +622,10 @@
           <h4 class="font-heading font-semibold text-xs text-slate-800">วิธีที่ 1: เพิ่มรายบุคคล</h4>
           <div class="grid grid-cols-1 sm:grid-cols-12 gap-2.5">
             <div class="sm:col-span-2">
-              <input id="newStuNumber" type="number" placeholder="เลขที่" class="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm bg-white" />
+              <input id="newStuNumber" type="number" placeholder="ลำดับที่" class="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm bg-white" />
             </div>
             <div class="sm:col-span-4">
-              <input id="newStuId" type="text" placeholder="รหัสนักเรียน (เช่น 6601008)" class="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm bg-white" />
+              <input id="newStuId" type="text" placeholder="รหัสนักศึกษา (เช่น 67174910101)" class="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm bg-white" />
             </div>
             <div class="sm:col-span-6">
               <input id="newStuName" type="text" placeholder="ชื่อ-นามสกุล" class="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm bg-white" />
@@ -640,12 +640,12 @@
         <div class="p-4 rounded-xl bg-blue-50/50 border border-blue-200 space-y-2.5">
           <h4 class="font-heading font-semibold text-xs text-blue-900">วิธีที่ 2: นำเข้าทีละหลายคน (ก๊อปปี้จาก Excel หรือ Google Sheets มาวางได้เลย)</h4>
           <p class="text-[11px] text-slate-600">
-            รูปแบบบรรทัดละ 1 คน: <code>เลขที่ [Tab หรือ ,] รหัสนักเรียน [Tab หรือ ,] ชื่อ-นามสกุล</code> หรือ <code>รหัสนักเรียน, ชื่อ-นามสกุล</code>
+            รูปแบบบรรทัดละ 1 คน: <code>ลำดับที่ [Tab หรือ ,] รหัสนักศึกษา [Tab หรือ ,] ชื่อ-นามสกุล</code> หรือ <code>รหัสนักศึกษา, ชื่อ-นามสกุล</code>
           </p>
           <textarea
             id="bulkStudentsTextarea"
             rows="5"
-            placeholder="ตัวอย่าง:&#10;1&#9;6601010&#9;นายสมชาย ใจดี&#10;2&#9;6601011&#9;นางสาวสมหญิง รักเรียน"
+            placeholder="ตัวอย่าง:&#10;1&#9;67174910101&#9;นายสมชาย ใจดี&#10;2&#9;67174910102&#9;นางสาวสมหญิง รักเรียน"
             class="w-full p-3 rounded-xl border border-slate-200 text-xs font-mono bg-white"
           ></textarea>
           <div class="flex justify-end gap-2">

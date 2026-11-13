@@ -694,11 +694,11 @@ const App = {
 
       return `
         <tr id="stuRow_${student.id}" class="hover:bg-blue-50/30 transition bg-white">
-          <td class="py-2.5 px-3 border-b border-r border-slate-200 text-center text-xs font-medium text-slate-600">
-            <span class="px-2 py-0.5 rounded bg-slate-100">${student.classroom}</span>
-          </td>
-          <td class="py-2.5 px-2 border-b border-r border-slate-200 text-center text-xs text-slate-500">
+          <td class="py-2.5 px-2 border-b border-r border-slate-200 text-center text-xs font-medium text-slate-600">
             ${student.number || '-'}
+          </td>
+          <td class="py-2.5 px-3 border-b border-r border-slate-200 text-center text-xs font-mono font-medium text-slate-800">
+            <span class="font-mono">${student.studentId}</span>
           </td>
           <td class="py-2.5 px-3 border-b border-r border-slate-200 sticky-col-left shadow-[2px_0_5px_-2px_rgba(0,0,0,0.06)]">
             <div class="flex items-center justify-between gap-2 min-w-[190px]">
@@ -707,7 +707,7 @@ const App = {
                   ${student.name}
                 </button>
                 <div class="text-[11px] text-slate-500 flex items-center gap-2">
-                  <span>รหัส: ${student.studentId}</span>
+                  <span class="px-1.5 py-0.5 rounded bg-slate-100 text-[10px] text-slate-600 font-medium">ห้อง ${student.classroom}</span>
                   ${summary.missingAssignments.length > 0
                     ? `<span class="text-red-600 font-medium">• ค้าง ${summary.missingAssignments.length} งาน</span>`
                     : `<span class="text-emerald-600">• ส่งครบ</span>`}
@@ -740,9 +740,9 @@ const App = {
       <table class="w-full border-collapse text-left">
         <thead>
           <tr class="bg-slate-100 text-slate-700 text-xs font-heading">
-            <th class="py-3 px-3 border-b border-r border-slate-200 text-center w-20">ห้อง</th>
-            <th class="py-3 px-2 border-b border-r border-slate-200 text-center w-14">เลขที่</th>
-            <th class="py-3 px-3 border-b border-r border-slate-200 sticky-col-left bg-slate-100 min-w-[210px]">ชื่อ-นามสกุล / รหัส</th>
+            <th class="py-3 px-2 border-b border-r border-slate-200 text-center w-16">ลำดับที่</th>
+            <th class="py-3 px-3 border-b border-r border-slate-200 text-center min-w-[125px]">รหัสนักศึกษา</th>
+            <th class="py-3 px-3 border-b border-r border-slate-200 sticky-col-left bg-slate-100 min-w-[210px]">ชื่อ-นามสกุล</th>
             <th class="py-3 px-3 border-b border-r border-slate-200 text-center bg-emerald-50/60 min-w-[105px]">
               <div class="font-semibold text-emerald-900">คะแนนเข้าเรียน</div>
               <div class="text-[11px] text-emerald-700">เต็ม ${course.attendanceMaxScore || 0}</div>
@@ -883,15 +883,17 @@ const App = {
 
       return `
         <tr class="hover:bg-slate-50 border-b border-slate-100">
-          <td class="py-3 px-4 text-center">
-            <span class="px-2 py-0.5 rounded bg-slate-100 text-slate-700 text-xs font-medium">${stu.classroom}</span>
+          <td class="py-3 px-3 text-center text-xs font-medium text-slate-600">${stu.number || '-'}</td>
+          <td class="py-3 px-4 text-center font-mono text-xs font-medium text-slate-800">
+            <span class="font-mono">${stu.studentId}</span>
           </td>
-          <td class="py-3 px-3 text-center text-xs text-slate-500">${stu.number || '-'}</td>
           <td class="py-3 px-4">
             <button onclick="App.openStudentProfile('${stu.id}')" class="font-heading font-medium text-slate-900 hover:text-blue-600 text-left">
               ${stu.name}
             </button>
-            <div class="text-xs text-slate-500">รหัส ${stu.studentId}</div>
+            <div class="text-xs text-slate-500">
+              <span class="px-1.5 py-0.5 rounded bg-slate-100 text-[10px] text-slate-600 font-medium">ห้อง ${stu.classroom}</span>
+            </div>
           </td>
           <td class="py-3 px-4">
             <div class="flex flex-wrap items-center justify-center gap-1.5">
@@ -1360,8 +1362,8 @@ const App = {
       <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200">
         <div>
           <div class="flex items-center gap-2">
-            <span class="px-2.5 py-0.5 rounded-lg bg-blue-100 text-blue-800 text-xs font-semibold">ห้อง ${stu.classroom} • เลขที่ ${stu.number || '-'}</span>
-            <span class="text-xs text-slate-500">รหัสนักเรียน: <strong>${stu.studentId}</strong></span>
+            <span class="px-2.5 py-0.5 rounded-lg bg-blue-100 text-blue-800 text-xs font-semibold">ห้อง ${stu.classroom} • ลำดับที่ ${stu.number || '-'}</span>
+            <span class="text-xs text-slate-500">รหัสนักศึกษา: <strong>${stu.studentId}</strong></span>
           </div>
           <h3 class="text-xl font-heading font-bold text-slate-900 mt-1">${stu.name}</h3>
           <p class="text-xs text-slate-500">รายวิชา: ${course.code} ${course.name} (ภาคเรียน ${course.term})</p>
@@ -1577,7 +1579,7 @@ const App = {
               <div class="flex items-center gap-2 text-xs text-blue-100">
                 <span class="px-2.5 py-0.5 rounded-full bg-white/15 font-medium">รหัสวิชา ${course.code}</span>
                 <span>• ภาคเรียน ${course.term}</span>
-                <span>• ห้อง ${stu.classroom} (เลขที่ ${stu.number || '-'})</span>
+                <span>• ห้อง ${stu.classroom} (ลำดับที่ ${stu.number || '-'})</span>
               </div>
               <h3 class="text-lg font-heading font-bold mt-1">${course.name}</h3>
             </div>
@@ -1824,7 +1826,7 @@ const App = {
     if (!course) return;
     const assessments = course.assessments || [];
     const headers = [
-      'รหัสวิชา', 'ชื่อวิชา', 'ห้องเรียน', 'เลขที่', 'รหัสนักเรียน', 'ชื่อ-นามสกุล',
+      'รหัสวิชา', 'ชื่อวิชา', 'ห้องเรียน', 'ลำดับที่', 'รหัสนักศึกษา', 'ชื่อ-นามสกุล',
       'อัตราเข้าเรียน (%)', `คะแนนเข้าเรียน (${course.attendanceMaxScore || 0})`,
       ...assessments.map(a => `${a.title} (${a.maxScore})`),
       'คะแนนรวมสุทธิ', 'เกรดที่ได้', 'จำนวนงานค้าง (ชิ้น)', 'หมายเหตุ'
